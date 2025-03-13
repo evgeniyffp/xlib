@@ -3,6 +3,9 @@
 #include <cstddef> // std::size_t, std::ptrdiff_t
 #include <utility> // std::forward, std::move
 
+#include "./default_delete.hpp"
+#include "../utility/private_tag.hpp"
+
 namespace xlib::memory {
   template <typename T>
   class shared_ptr {
@@ -24,10 +27,10 @@ namespace xlib::memory {
         ControlBlockWithPtr(T* ptr) : ControlBlock(ptr) {}
 
         ControlBlockWithPtr(T* ptr, const Deleter& deleter)
-              : ControlBlockWithPtr(ptr), deleter(deleter) {}
+              : ControlBlock(ptr), deleter(deleter) {}
 
         ControlBlockWithPtr(T* ptr, Deleter&& deleter)
-              : ControlBlockWithPtr(ptr), deleter(std::move(deleter)) {}
+              : ControlBlock(ptr), deleter(std::move(deleter)) {}
 
         ~ControlBlockWithPtr() override {
           deleter(this->ptr);
@@ -118,7 +121,7 @@ namespace xlib::memory {
 
       template <typename Deleter>
       void reset(T* ptr, Deleter deleter) {
-        shared_ptr<T, Deleter>(ptr, std::move(deleter)).swap(*this);
+        shared_ptr(ptr, std::move(deleter)).swap(*this);
       }
   };
 
