@@ -2,8 +2,10 @@
 
 #include <cstddef> // std::size_t, std::ptrdiff_t
 #include <utility> // std::forward, std::move
+#include <type_traits> // std::is_same_v
 
 #include "./default_delete.hpp"
+#include "./unique_ptr.hpp"
 #include "../utility/private_tag.hpp"
 
 namespace xlib::memory {
@@ -11,20 +13,31 @@ namespace xlib::memory {
   class shared_ptr {
     public:
       struct ControlBlock {
-        std::size_t shared_count;
-      // std::size_t weak_count; TODO
+        std::size_t* shared_count;
+      // std::size_t* weak_count; TODO
 
         T* ptr = nullptr;
 
-        ControlBlock(T* ptr) : shared_count(1), ptr(ptr) {}
+        ControlBlock(T* ptr, std::size_t* shared_count)
+              : shared_count(shared_count), ptr(ptr) {}
+
         virtual ~ControlBlock() = default;
       };
 
+      class ControlBlockWithCount : public ControlBlock {
+      private:
+        size_t data = 1;
+
+      public:
+        ControlBlockWithCount(T* ptr) : ControlBlock(ptr, &data) {}
+        ~ControlBlockWithCount() override = default;
+      };
+
       template <typename Deleter = default_delete<T>>
-      struct ControlBlockWithPtr : public ControlBlock {
+      struct ControlBlockWithPtr : public ControlBlockWithCount {
         Deleter deleter;
 
-        ControlBlockWithPtr(T* ptr) : ControlBlock(ptr) {}
+        ControlBlockWithPtr(T* ptr) : ControlBlockWithCount(ptr) {}
 
         ControlBlockWithPtr(T* ptr, const Deleter& deleter)
               : ControlBlock(ptr), deleter(deleter) {}
@@ -37,12 +50,12 @@ namespace xlib::memory {
         }
       };
 
-      struct ControlBlockWithObj : public ControlBlock {
+      struct ControlBlockWithObj : public ControlBlockWithCount {
         alignas(T) char data[sizeof(T)];
 
         template <typename... Args>
         ControlBlockWithObj(Args&&... args)
-            : ControlBlock(reinterpret_cast<T*>(data)) { // Undefine behavour (align!) TODO
+            : ControlBlockWithCount(reinterpret_cast<T*>(data)) { // Undefine behavour (align!) TODO
           new (this->ptr) T(std::forward<Args>(args)...);
         }
 
@@ -57,25 +70,35 @@ namespace xlib::memory {
       shared_ptr(private_tag_t, Args&&... args)
             : block(new ControlBlockWithObj(std::forward<Args>(args)...)) {}
 
+      shared_ptr(private_tag_t, ControlBlock* block)
+            : block(block) {}
+
     public:
+      template <typename _T, typename U>
+      friend shared_ptr<_T> static_pointer_cast(const shared_ptr<U>& other);
+
+      template <typename U, typename... Args>
+      friend shared_ptr<U> make_shared(Args&&... args);
+
       shared_ptr(T* ptr) : block(new ControlBlockWithPtr(ptr)) {}
 
       template <typename Deleter>
       shared_ptr(T* ptr, Deleter deleter) : block(new ControlBlockWithPtr<Deleter>(ptr, std::move(deleter))) {}
 
-      template <typename U, typename... Args>
-      friend shared_ptr<U> make_shared(Args&&... args);
-
       shared_ptr(const shared_ptr& other) : block(other.block) {
-        ++block->shared_count;
+        ++*block->shared_count;
       }
 
       shared_ptr(shared_ptr&& other) : block(other.block) {
         other.block = nullptr;
       }
 
+      template <typename Deleter>
+      shared_ptr(unique_ptr<T, Deleter>&& other)
+            : block(new ControlBlockWithPtr<Deleter>(other.release())) {}
+
       ~shared_ptr() {
-        if (--block->shared_count == 0)
+        if (--*block->shared_count == 0)
           delete block;
       }
 
@@ -104,7 +127,7 @@ namespace xlib::memory {
       }
 
       size_t use_count() const {
-        return block->shared_count;
+        return *block->shared_count;
       }
 
       bool unique() const {
@@ -128,5 +151,32 @@ namespace xlib::memory {
   template <typename U, typename... Args>
   shared_ptr<U> make_shared(Args&&... args) {
     return { private_tag, std::forward<Args>(args)... };
+  }
+
+  template <typename T, typename U>
+  shared_ptr<T> static_pointer_cast(const shared_ptr<U>& other) {
+    ++*other.block->shared_count;
+    return {
+      private_tag,
+      new typename shared_ptr<T>::ControlBlock(static_cast<U*>(other.block->ptr), other.block->shared_count)
+    };
+  }
+
+  template <typename T, typename U>
+  shared_ptr<T> dynamic_pointer_cast(const shared_ptr<U>& other) {
+    ++*other.block->shared_count;
+    return {
+      private_tag,
+      new typename shared_ptr<T>::ControlBlock(dynamic_cast<U*>(other.block->ptr), other.block->shared_count)
+    };
+  }
+
+  template <typename T, typename U>
+  shared_ptr<T> const_pointer_cast(const shared_ptr<U>& other) {
+    ++*other.block->shared_count;
+    return {
+      private_tag,
+      new typename shared_ptr<T>::ControlBlock(const_cast<U*>(other.block->ptr), other.block->shared_count)
+    };
   }
 }
