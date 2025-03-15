@@ -1,6 +1,6 @@
 #pragma once
 
-namespace xlib::detail {
+namespace xlib::container::detail {
     template <
       typename Key,
       bool isHaveValue,
@@ -278,7 +278,7 @@ namespace xlib::detail {
     };
 }
 
-namespace xlib {
+namespace xlib::container {
   template <
       typename Key,
       typename T,
@@ -298,3 +298,4 @@ namespace xlib {
   >
   using avl_tree_without_value = detail::avl_tree<Key, false, detail::dont_have_value, Compare, Allocator>;
 }
+
