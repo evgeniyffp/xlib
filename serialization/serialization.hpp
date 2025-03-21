@@ -10,7 +10,6 @@
 #include <boost/type_index.hpp>
 
 namespace xlib::serialization {
-
   // Serialization's model:
   //  Name of type('\0' is end) - Size(16 bits) - Data(size is Size)
 
@@ -151,35 +150,19 @@ namespace xlib::serialization {
       value = (_f(*(it++)) << 24)
             + (_f(*(it++)) << 16)
             + (_f(*(it++)) << 8)
-            + (_f(*(it++)) >> 0);
+            + (_f(*(it++)) << 0);
     }
-/*
+
     void decode(int64_t& value, std::vector<uint8_t>::const_iterator& it) {
-      value = (*(it++) >> 56)
-            + (*(it++) >> 48)
-            + (*(it++) >> 40)
-            + (*(it++) >> 32)
-            + (*(it++) >> 24)
-            + (*(it++) >> 16)
-            + (*(it++) >> 8)
-            + (*(it++) >> 0);
-    }*/
-  }
-
-  template <typename T>
-  requires (!std::is_fundamental_v<T>)
-  void encode(std::vector<uint8_t>& array, const T& value) {
-    serializator::node temp_node;
-
-    if (!value.try_encode(temp_node)) {
-      throw failed_encode{};
+      value = (*(it++) << 56)
+            + (*(it++) << 48)
+            + (*(it++) << 40)
+            + (*(it++) << 32)
+            + (*(it++) << 24)
+            + (*(it++) << 16)
+            + (*(it++) << 8)
+            + (*(it++) << 0);
     }
-
-    auto old_size = node_type.array.size();
-    array.resize(array.size() + old_size);
-    array.insert(array.begin() + old_size, node.array.begin(), node.array.end());
-
-    return true;
   }
 
   template <typename T>
@@ -211,15 +194,21 @@ namespace xlib::serialization {
         throw failed_read{};
     }
 
-    if (!value.try_decode(temp_node)) {
+    if (temp_node.name != boost::typeindex::type_id_with_cvr<T>().pretty_name()
+      || !value.try_decode(temp_node)) {
         throw failed_decode{};
     }
 
     return s;
   }
-
 }
 
 namespace xlib {
   using serialization::serializator;
+
+  template <typename T>
+  concept serialized = std::is_fundamental_v<T> || requires(serializator::node_type& node, T value) {
+    value.try_encode(node.array);
+    value.try_decode(node.array);
+  };
 }
