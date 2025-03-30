@@ -3,13 +3,14 @@
   *xlib* is my big project, which include a lot of library(headers).
 ## **The components**
   Project is still being improved by me.
-  - *containers* 20%. Now there're *unordered_map*. *avl_tree* isn't ready now. In future there will a lot of containers(such as *hash_map*, *stable_vector*, *devector*, maybe *vector* and *inplace_vector*, *list* and etc.)
+  - *serialization* 99%. There are a few things that need to be fixed.
   - *function* 99%. It have 2 realization(*function.hpp* and *function_may_be_with_virtual.hpp*. And I think *function.hpp* have UB, but I'm not sure about that.)
-  - *serialization* 100%. There are a few things that need to be fixed.
   - memory 70%. *shared_ptr* and *weak_ptr* is almost ready. There will *unique_ptr*, maybe *hazard_ptr* in future.
-  - utility 10%. Now it have *timer*, *private_tag*.
   - variant 50%.
-## Comming soon:
+  - allocators 30%.
+  - *containers* 20%. Now there're *unordered_map*. *avl_tree* isn't ready now. In future there will a lot of containers(such as *hash_map*, *stable_vector*, *devector*, maybe *vector* and *inplace_vector*, *list* and etc.)
+  - utility 10%. Now it have *timer*, *private_tag*.
+### Comming soon:
   - update *multithreading*: add *thread*, *async* and etc.
   - update *memory*
   - add *tuple*
