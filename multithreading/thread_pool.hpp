@@ -44,12 +44,6 @@ namespace xlib {
       for (size_t i = 0; i < numThreads; ++i) {
         workers.emplace_back(loop_of_work);
       }
-/*
-      std::thread([this]() {
-          while (!stop)
-            condition.notify_one();
-      }).detach();
-*/
     }
 
     template <class F, class... Args>
@@ -64,9 +58,6 @@ namespace xlib {
 
       {
         std::unique_lock<std::mutex> lock(queueMutex);
-
-        if (stop)
-          throw std::runtime_error("enqueue on stopped ThreadPool");
 
         tasks.emplace([task]() { (*task)(); });
       }
@@ -86,40 +77,6 @@ namespace xlib {
       for (std::thread& worker : workers)
         worker.join();
     }
-
-    void reset(size_t numThreads) {
-      stop = true;
-      condition.notify_all();
-      for (std::thread& worker : workers)
-        if (worker.joinable())
-          worker.join();
-
-      workers.clear();
-      tasks = std::queue<std::function<void()>>();
-      stop = false;
-
-      for (size_t i = 0; i < numThreads; ++i) {
-        workers.emplace_back([this] {
-          while (true) {
-            std::function<void()> task;
-            {
-              std::unique_lock<std::mutex> lock(queueMutex);
-              condition.wait(lock, [this] {
-                return stop || !tasks.empty();
-              });
-
-              if (stop && tasks.empty())
-                break;
-
-              task = std::move(tasks.front());
-              tasks.pop();
-            }
-            task();
-          }
-        });
-    }
-}
-
 
   private:
     std::vector<std::thread> workers;

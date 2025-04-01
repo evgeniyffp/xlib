@@ -4,6 +4,7 @@
 #include <mutex>
 
 #include "../utility/thread_safety.hpp"
+#include "../utility/ignore_t.hpp"
 
 namespace xlib {
   template <typename, typename = thread_safety<false>>
@@ -17,11 +18,6 @@ namespace xlib {
       T data;
     };
 
-    struct ignore_t {
-      template <typename... Args> ignore_t(Args&&...) {}
-      template <typename... Args> ignore_t& operator=(Args&&...) { return *this; }
-    };
-
     struct impl_data_t {
       std::vector<pair> pool;
       std::mutex mtx;
@@ -31,7 +27,7 @@ namespace xlib {
       impl_data_t(std::size_t size) : pool(size) {}
     };
 
-    using lock_guard = impl_data_t::lock_guard;
+    using lock_guard = typename impl_data_t::lock_guard;
 
     std::shared_ptr<impl_data_t> impl_data;
 
@@ -53,7 +49,7 @@ namespace xlib {
     pool_allocator& operator=(const pool_allocator&) = delete;
     pool_allocator& operator=(pool_allocator&&) = delete;
 
-    T* allocate() {
+    pointer allocate() {
       lock_guard l(impl_data->mtx);
 
       for (size_t i = 0; i < impl_data->pool.size(); ++i) {
@@ -66,12 +62,12 @@ namespace xlib {
       return nullptr;
     }
 
-    void deallocate(T* ptr) {
+    void deallocate(pointer ptr) {
       lock_guard l(impl_data->mtx);
 
       diffrent_type index =
           reinterpret_cast<char*>(ptr) - reinterpret_cast<char*>(&(impl_data->pool.data()->data));
-      index /= sizeof(T);
+      index /= sizeof(value_type);
 
       impl_data->pool[index].is_used = false;
     }
