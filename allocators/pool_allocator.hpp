@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <mutex>
+#include <utility>
 
 #include "../utility/thread_safety.hpp"
 #include "../utility/ignore_t.hpp"
@@ -19,12 +20,15 @@ namespace xlib {
     };
 
     struct impl_data_t {
-      std::vector<pair> pool;
+      std::unique_ptr<pair[]> pool;
       std::mutex mtx;
 
       using lock_guard = std::conditional_t<is_thread_safety, std::lock_guard<std::mutex>, ignore_t>;
 
-      impl_data_t(std::size_t size) : pool(size) {}
+      impl_data_t(std::size_t size)
+          : pool(reinterpret_cast<pair*>(
+              ::operator new[](sizeof(pair) * size, static_cast<std::align_val_t>(alignof(pair)))
+          )) {}
     };
 
     using lock_guard = typename impl_data_t::lock_guard;
@@ -62,6 +66,15 @@ namespace xlib {
       return nullptr;
     }
 
+    template <typename... Args>
+    pointer allocate_construct(Args&&... args) {
+      auto ptr = allocate();
+
+      new (ptr) T(std::forward<Args>(args)...);
+
+      return ptr;
+    }
+
     void deallocate(pointer ptr) {
       lock_guard l(impl_data->mtx);
 
@@ -70,6 +83,11 @@ namespace xlib {
       index /= sizeof(value_type);
 
       impl_data->pool[index].is_used = false;
+    }
+
+    void destroy_deallocate(pointer ptr) {
+      ptr->~T();
+      deallocate(ptr);
     }
 
     template <typename U>
